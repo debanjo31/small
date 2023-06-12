@@ -1,58 +1,75 @@
-import React, {useState, useEffect} from 'react'
-import {ethers} from 'ethers'
-import './WalletCard.css'
+// https://docs.metamask.io/guide/ethereum-provider.html#using-the-provider
+
+import React, { useState } from "react";
+import { ethers } from "ethers";
+import "./WalletCard.css";
 
 const App = () => {
+  const [errorMessage, setErrorMessage] = useState(null);
+  const [defaultAccount, setDefaultAccount] = useState(null);
+  const [userBalance, setUserBalance] = useState(null);
+  const [connButtonText, setConnButtonText] = useState("Connect Wallet");
 
-	const [errorMessage, setErrorMessage] = useState(null);
-	const [defaultAccount, setDefaultAccount] = useState(null);
-	const [userBalance, setUserBalance] = useState(null);
-	const [connButtonText, setConnButtonText] = useState('Connect Wallet');
-	const [provider, setProvider] = useState(null);
+  const connectWalletHandler = () => {
+    if (window.ethereum && window.ethereum.isMetaMask) {
+      console.log("MetaMask Here!");
 
-	const connectWalletHandler = () => {
-		if (window.ethereum && defaultAccount == null) {
-			// set ethers provider
-			setProvider(new ethers.providers.Web3Provider(window.ethereum));
+      window.ethereum
+        .request({ method: "eth_requestAccounts" })
+        .then((result) => {
+          accountChangedHandler(result[0]);
+          setConnButtonText("Wallet Connected");
+          getAccountBalance(result[0]);
+        })
+        .catch((error) => {
+          setErrorMessage(error.message);
+        });
+    } else {
+      console.log("Need to install MetaMask");
+      setErrorMessage("Please install MetaMask browser extension to interact");
+    }
+  };
 
-			// connect to metamask
-			window.ethereum.request({ method: 'eth_requestAccounts'})
-			.then(result => {
-				setConnButtonText('Wallet Connected');
-				setDefaultAccount(result[0]);
-			})
-			.catch(error => {
-				setErrorMessage(error.message);
-			});
+  // update account, will cause component re-render
+  const accountChangedHandler = (newAccount) => {
+    setDefaultAccount(newAccount);
+    getAccountBalance(newAccount.toString());
+  };
 
-		} else if (!window.ethereum){
-			console.log('Need to install MetaMask');
-			setErrorMessage('Please install MetaMask browser extension to interact');
-		}
-	}
+  const getAccountBalance = (account) => {
+    window.ethereum
+      .request({ method: "eth_getBalance", params: [account, "latest"] })
+      .then((balance) => {
+        setUserBalance(ethers.utils.formatEther(balance));
+      })
+      .catch((error) => {
+        setErrorMessage(error.message);
+      });
+  };
 
-useEffect(() => {
-	if(defaultAccount){
-	provider.getBalance(defaultAccount)
-	.then(balanceResult => {
-		setUserBalance(ethers.utils.formatEther(balanceResult));
-	})
-	};
-}, [defaultAccount]);
-	
-	return (
-		<div className='walletCard'>
-		<h4> Connection to MetaMask using ethers.js </h4>
-			<button onClick={connectWalletHandler}>{connButtonText}</button>
-			<div className='accountDisplay'>
-				<h3>Address: {defaultAccount}</h3>
-			</div>
-			<div className='balanceDisplay'>
-				<h3>Balance: {userBalance}</h3>
-			</div>
-			{errorMessage}
-		</div>
-	);
-}
+  const chainChangedHandler = () => {
+    // reload the page to avoid any errors with chain change mid use of application
+    window.location.reload();
+  };
+
+  // listen for account changes
+  window.ethereum.on("accountsChanged", accountChangedHandler);
+
+  window.ethereum.on("chainChanged", chainChangedHandler);
+
+  return (
+    <div className="walletCard">
+      <h4> {"Connection to MetaMask using window.ethereum methods"} </h4>
+      <button onClick={connectWalletHandler}>{connButtonText}</button>
+      <div className="accountDisplay">
+        <h3>Address: {defaultAccount}</h3>
+      </div>
+      <div className="balanceDisplay">
+        <h3>Balance: {userBalance}</h3>
+      </div>
+      {errorMessage}
+    </div>
+  );
+};
 
 export default App;
