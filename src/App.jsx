@@ -1,58 +1,81 @@
-import React, {useState, useEffect} from 'react'
-import {ethers} from 'ethers'
-import './WalletCard.css'
+import { useState } from "react";
+import { ethers } from "ethers";
+import ErrorMessage from "./ErrorMessage";
+import TxList from "./TxList";
 
-const App = () => {
+export default function App() {
+  const [error, setError] = useState();
+  const [txs, setTxs] = useState([]);
 
-	const [errorMessage, setErrorMessage] = useState(null);
-	const [defaultAccount, setDefaultAccount] = useState(null);
-	const [userBalance, setUserBalance] = useState(null);
-	const [connButtonText, setConnButtonText] = useState('Connect Wallet');
-	const [provider, setProvider] = useState(null);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const data = new FormData(e.target);
+    setError();
+    await startPayment({
+      setError,
+      setTxs,
+      ether: data.get("ether"),
+      addr: data.get("addr"),
+    });
+  };
+  const startPayment = async ({ setError, setTxs, ether, addr }) => {
+    try {
+      if (!window.ethereum)
+        throw new Error("No crypto wallet found. Please install it.");
 
-	const connectWalletHandler = () => {
-		if (window.ethereum && defaultAccount == null) {
-			// set ethers provider
-			setProvider(new ethers.providers.Web3Provider(window.ethereum));
+      await window.ethereum.send("eth_requestAccounts");
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner();
+      ethers.utils.getAddress(addr);
+      const tx = await signer.sendTransaction({
+        to: addr,
+        value: ethers.utils.parseEther(ether),
+      });
+      console.log({ ether, addr });
+      console.log("tx", tx);
+      setTxs([tx]);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
 
-			// connect to metamask
-			window.ethereum.request({ method: 'eth_requestAccounts'})
-			.then(result => {
-				setConnButtonText('Wallet Connected');
-				setDefaultAccount(result[0]);
-			})
-			.catch(error => {
-				setErrorMessage(error.message);
-			});
-
-		} else if (!window.ethereum){
-			console.log('Need to install MetaMask');
-			setErrorMessage('Please install MetaMask browser extension to interact');
-		}
-	}
-
-useEffect(() => {
-	if(defaultAccount){
-	provider.getBalance(defaultAccount)
-	.then(balanceResult => {
-		setUserBalance(ethers.utils.formatEther(balanceResult));
-	})
-	};
-}, [defaultAccount]);
-	
-	return (
-		<div className='walletCard'>
-		<h4> Connection to MetaMask </h4>
-			<button onClick={connectWalletHandler}>{connButtonText}</button>
-			<div className='accountDisplay'>
-				<h3>Address: {defaultAccount}</h3>
-			</div>
-			<div className='balanceDisplay'>
-				<h3>Balance: {userBalance}</h3>
-			</div>
-			{errorMessage}
-		</div>
-	);
+  return (
+    <form className="m-4" onSubmit={handleSubmit}>
+      <div className="credit-card w-full lg:w-1/2 sm:w-auto shadow-lg mx-auto rounded-xl bg-white">
+        <main className="mt-4 p-4">
+          <h1 className="text-xl font-semibold text-gray-700 text-center">
+            Send ETH payment
+          </h1>
+          <div className="">
+            <div className="my-3">
+              <input
+                type="text"
+                name="addr"
+                className="input input-bordered block w-full focus:ring focus:outline-none"
+                placeholder="Recipient Address"
+              />
+            </div>
+            <div className="my-3">
+              <input
+                name="ether"
+                type="text"
+                className="input input-bordered block w-full focus:ring focus:outline-none"
+                placeholder="Amount in ETH"
+              />
+            </div>
+          </div>
+        </main>
+        <footer className="p-4">
+          <button
+            type="submit"
+            className="btn btn-primary submit-button focus:ring focus:outline-none w-full"
+          >
+            Pay now
+          </button>
+          <ErrorMessage message={error} />
+          <TxList txs={txs} />
+        </footer>
+      </div>
+    </form>
+  );
 }
-
-export default App;
